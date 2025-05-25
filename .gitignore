@@ -1,5 +1,5 @@
-./bin/
+./bin/*
 ./include
-./lib/*
-./lib64/*
+./lib/python3.11/site-packages/*
+./lib64/python3.11/site-packages/*
 ./pyvenv.cfg
