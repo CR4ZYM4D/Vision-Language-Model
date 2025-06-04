@@ -135,15 +135,46 @@ class VisionEncoderBlock(nn.Module):
 
         return hidden_states + skip_connector
 
+# class for the vision transformer encoder
+
+class VisionEncoder(nn.Module):
+
+    def __init__(self, vector_dimension, normalization_constant, attention_heads, dropout, linear_dimension, num_layers):
+        super().__init__()
+
+        self.vector_dimension = vector_dimension
+        self.normalization_constant = normalization_constant
+        self.attention_heads = attention_heads
+        self.dropout= dropout
+        self.linear_dimension = linear_dimension
+        self.num_layers = num_layers
+
+        self.encoderLayers = nn.ModuleList( [VisionEncoderBlock(self.vector_dimension, 
+                                                                self.normalization_constant, 
+                                                                self.attention_heads, 
+                                                                self.dropout, 
+                                                                self.linear_dimension)] for _ in self.num_layers )
+        
+    def forward(self, input_embeddings):
+
+        hidden_states = input_embeddings
+
+        for EncoderBlock in self.encoderLayers:
+
+            hidden_states = EncoderBlock(hidden_states)
+
+        return hidden_states
+
+
 # class to make the vision Transformer Model
 
 class VisionTransformer(nn.Module):
 
-    def __init__(self, vector_dimension, normalization_constant, patch_size, num_channels, image_size):
+    def __init__(self, vector_dimension, normalization_constant, patch_size, num_channels, image_size, num_layers, attention_heads, linear_dimension, dropout):
         super().__init__()
 
         self.embeddingLayer = VisionEmbedding(vector_dimension, patch_size, num_channels, image_size)
-        self.encoderLayer
+        self.encoderLayer = VisionEncoder(vector_dimension, normalization_constant, attention_heads, dropout, linear_dimension, num_layers)
         self.postNormalizationLayer = nn.LayerNorm(vector_dimension, eps = normalization_constant)
 
     def forward(self, image_tensors):
