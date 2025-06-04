@@ -37,6 +37,36 @@ class VisionEmbedding(nn.Module):
 
         return image_embeddings + self.positionalEmbedding(self.positions)
 
+# class for a single encoder block of the vision transformer
+
+class VisionEncoderBlock(nn.Module):
+
+    def __init__(self, ):
+        super().__init__(vector_dimension, normalization_constant, attention_heads, dropout, linear_dimension)
+
+        self.layerNorm1 = nn.LayerNorm(vector_dimension, normalization_constant)
+        self.layerNorm2 = nn.LayerNorm(vector_dimension, normalization_constant) 
+
+        self.attentionBlock
+
+        self.MLP 
+
+    def forward(self, hidden_states):
+
+        skip_connector = torch.clone(hidden_states)
+
+        hidden_states = self.layerNorm1(hidden_states)
+
+        hidden_states = self.attentionBlock()
+
+        hidden_states = hidden_states + skip_connector
+
+        skip_connector = hidden_states
+
+        hidden_states = self.layerNorm2(hidden_states)
+
+        return hidden_states + skip_connector
+
 # class to make the vision Transformer Model
 
 class VisionTransformer(nn.Module):
