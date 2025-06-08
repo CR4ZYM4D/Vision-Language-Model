@@ -2,34 +2,72 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as f 
 
+#moving config class here
+
+class VisionModelConfig:
+    vector_dimension = 768 
+
+    linear_dimension = 3072 # dimension of the linear layer of feed forward for normalization
+
+    image_size = 224 # pixels in each dimension of image
+
+    num_channels = 3 # number of channels in image (R, G, B)
+
+    patch_size = 16 # number of patches/ blocks we break each image into
+
+    attention_heads = 12 # number of attention heads
+
+    num_layers = 12 # number of transformer block layers in the model
+
+    dropout = 0.4
+
+    normalization_constant = 1e-6 # proportionality constant for normalization layer
+
+    num_image_tokens : int = None # number of tokens produced for each image i.e. it produces a list of vectors/ embeddings for a patch of each image
+
+    def __init__(self, attention_heads, vector_dimension, linear_dimension, image_size, num_channels, patch_size, num_layers, dropout, normalization_constant, num_image_tokens):
+        
+        self.attention_heads = attention_heads
+        self.vector_dimension = vector_dimension
+        self.linear_dimension = linear_dimension
+        self.image_size = image_size
+        self.num_channels = num_channels
+        self.patch_size = patch_size
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.normalization_constant = normalization_constant
+        self.num_image_tokens = num_image_tokens
+
 # class for the embedding layer of the vision transformer model
 
 class VisionEmbedding(nn.Module):
 
-    def __init__(self, vector_dimension, patch_size, num_channels, image_size):
+    def __init__(self, config: VisionModelConfig):
         super().__init__()
 
+        self.config = config
+
         self.convolutor = nn.Conv2d(
-            in_channels = num_channels,  # 3 channels per image R, G, B
-            out_channels= vector_dimension, 
-            kernel_size= patch_size,
-            stride = patch_size
+            in_channels = self.config.num_channels,  # 3 channels per image R, G, B
+            out_channels= self.config.vector_dimension, 
+            kernel_size= self.config.patch_size,
+            stride = self.config.patch_size
             )
         
-        self.num_patches = (image_size // patch_size) ** 2
+        self.num_patches = (self.config.image_size // self.config.patch_size) ** 2
 
-        self.positionalEmbedding = nn.Embedding(self.num_patches, vector_dimension)
+        self.positionalEmbedding = nn.Embedding(self.num_patches, self.config.vector_dimension)
 
         self.register_buffer("positions", torch.arange(self.num_patches).expand((1, -1)), persistent= False)
 
-    def forward(self, image_tensors):
+    def forward(self, hidden_state):
 
         # image tensors are of shape [ batch_size x num_channels x height x width ] 
 
         # converting them to tensors of shape [ batch_size x vector_dimension x (height / patch_size) x (width / patch_size)]
         # using the CNN
 
-        image_embeddings = self.convolutor(image_tensors) # [ batch_size x vector_dimension x (height / patch_size) x (width / patch_size) ]
+        image_embeddings = self.convolutor(hidden_state) # [ batch_size x vector_dimension x (height / patch_size) x (width / patch_size) ]
 
         image_embeddings = image_embeddings.flatten(2) # [ batch_size x vector_dimension x num_patches ]
 
@@ -42,11 +80,12 @@ class VisionEmbedding(nn.Module):
 
 class VisionMLP(nn.Module):
 
-    def __init__(self, vector_dimension, linear_dimension):
+    def __init__(self, config: VisionModelConfig):
         super().__init__()
 
-        self.layer1 = nn.Linear(vector_dimension, linear_dimension)
-        self.layer2 = nn.Linear(linear_dimension, vector_dimension)
+        self.config = config
+        self.layer1 = nn.Linear(self.config.vector_dimension, self.config.linear_dimension)
+        self.layer2 = nn.Linear(self.config.linear_dimension, self.config.vector_dimension)
 
     def forward(self, hidden_state):
 
@@ -60,20 +99,21 @@ class VisionMLP(nn.Module):
 
 class VisionAttention(nn.Module):
 
-    def __init__(self, vector_dimension, attention_heads, dropout):
+    def __init__(self, config: VisionModelConfig):
         super().__init__()
 
-        self.num_heads = attention_heads
-        self.dropout = nn.Dropout(dropout)
-        self.vector_dimension = vector_dimension
-        self.head_dimension = vector_dimension // attention_heads
+        self.config = config
+        self.num_heads = self.config.attention_heads
+        self.dropout = nn.Dropout(self.config.dropout)
+        self.vector_dimension = self.config.vector_dimension
+        self.head_dimension = self.config.vector_dimension // self.config.attention_heads
 
-        self.wQ = nn.Linear(vector_dimension, vector_dimension) # Query projection layer
-        self.wK = nn.Linear(vector_dimension, vector_dimension) # Key projection layer
-        self.wV = nn.Linear(vector_dimension, vector_dimension) # Value projection layer
-        self.wO = nn.Linear(vector_dimension, vector_dimension) # Output projection layer
+        self.wQ = nn.Linear(self.vector_dimension, self.vector_dimension) # Query projection layer
+        self.wK = nn.Linear(self.vector_dimension, self.vector_dimension) # Key projection layer
+        self.wV = nn.Linear(self.vector_dimension, self.vector_dimension) # Value projection layer
+        self.wO = nn.Linear(self.vector_dimension, self.vector_dimension) # Output projection layer
 
-        self.scale = vector_dimension ** -0.5
+        self.scale = self.vector_dimension ** -0.5
 
     def forward(self, hidden_state):
 
@@ -109,45 +149,45 @@ class VisionAttention(nn.Module):
 
 class VisionEncoderBlock(nn.Module):
 
-    def __init__(self, vector_dimension, normalization_constant, attention_heads, dropout, linear_dimension):
+    def __init__(self, config: VisionModelConfig):
         super().__init__()
+        self.config = config
+        self.layerNorm1 = nn.LayerNorm(self.config.vector_dimension, self.config.normalization_constant)
+        self.layerNorm2 = nn.LayerNorm(self.config.vector_dimension, self.config.normalization_constant) 
 
-        self.layerNorm1 = nn.LayerNorm(vector_dimension, normalization_constant)
-        self.layerNorm2 = nn.LayerNorm(vector_dimension, normalization_constant) 
+        self.attentionBlock = VisionAttention(self.config.vector_dimension, self.config.attention_heads, self.config.dropout)
 
-        self.attentionBlock = VisionAttention(vector_dimension, attention_heads, dropout)
+        self.MLP = VisionMLP(self.config.vector_dimension, self.config.linear_dimension)
 
-        self.MLP = VisionMLP(vector_dimension, linear_dimension)
+    def forward(self, hidden_state):
 
-    def forward(self, hidden_states):
+        skip_connector = torch.clone(hidden_state)
 
-        skip_connector = torch.clone(hidden_states)
+        hidden_state = self.layerNorm1(hidden_state)
 
-        hidden_states = self.layerNorm1(hidden_states)
+        hidden_state = self.attentionBlock(hidden_state)
 
-        hidden_states = self.attentionBlock(hidden_states)
+        hidden_state = hidden_state + skip_connector
 
-        hidden_states = hidden_states + skip_connector
+        skip_connector = hidden_state
 
-        skip_connector = hidden_states
+        hidden_state = self.layerNorm2(hidden_state)
 
-        hidden_states = self.layerNorm2(hidden_states)
-
-        return hidden_states + skip_connector
+        return hidden_state + skip_connector
 
 # class for the vision transformer encoder
 
 class VisionEncoder(nn.Module):
 
-    def __init__(self, vector_dimension, normalization_constant, attention_heads, dropout, linear_dimension, num_layers):
+    def __init__(self, config: VisionModelConfig):
         super().__init__()
-
-        self.vector_dimension = vector_dimension
-        self.normalization_constant = normalization_constant
-        self.attention_heads = attention_heads
-        self.dropout= dropout
-        self.linear_dimension = linear_dimension
-        self.num_layers = num_layers
+        self.config = config
+        self.vector_dimension = self.config.vector_dimension
+        self.normalization_constant = self.config.normalization_constant
+        self.attention_heads = self.config.attention_heads
+        self.dropout= self.config.dropout
+        self.linear_dimension = self.config.linear_dimension
+        self.num_layers = self.config.num_layers
 
         self.encoderLayers = nn.ModuleList( [VisionEncoderBlock(self.vector_dimension, 
                                                                 self.normalization_constant, 
@@ -155,9 +195,9 @@ class VisionEncoder(nn.Module):
                                                                 self.dropout, 
                                                                 self.linear_dimension)] for _ in self.num_layers )
         
-    def forward(self, input_embeddings):
+    def forward(self, hidden_state):
 
-        hidden_states = input_embeddings
+        hidden_states = hidden_state
 
         for EncoderBlock in self.encoderLayers:
 
@@ -170,16 +210,16 @@ class VisionEncoder(nn.Module):
 
 class VisionTransformer(nn.Module):
 
-    def __init__(self, vector_dimension, normalization_constant, patch_size, num_channels, image_size, num_layers, attention_heads, linear_dimension, dropout):
+    def __init__(self, config: VisionModelConfig):
         super().__init__()
+        self.config = config
+        self.embeddingLayer = VisionEmbedding(self.config.vector_dimension, self.config.patch_size, self.config.num_channels, self.config.image_size)
+        self.encoderLayer = VisionEncoder(self.config.vector_dimension, self.config.normalization_constant, self.config.attention_heads, self.config.dropout, self.config.linear_dimension, self.config.num_layers)
+        self.postNormalizationLayer = nn.LayerNorm(self.config.vector_dimension, eps = self.config.normalization_constant)
 
-        self.embeddingLayer = VisionEmbedding(vector_dimension, patch_size, num_channels, image_size)
-        self.encoderLayer = VisionEncoder(vector_dimension, normalization_constant, attention_heads, dropout, linear_dimension, num_layers)
-        self.postNormalizationLayer = nn.LayerNorm(vector_dimension, eps = normalization_constant)
+    def forward(self, hidden_state):
 
-    def forward(self, image_tensors):
-
-        hidden_state = self.embeddingLayer(image_tensors)
+        hidden_state = self.embeddingLayer(hidden_state)
 
         hidden_state = self.encoderLayer(hidden_state)
 
