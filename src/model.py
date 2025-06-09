@@ -29,8 +29,14 @@ class VisionLanguageModelConfig():
           self.vector_dimension = vector_dimension
           self.pad_token_id = pad_token_id
 
-          self.vision_model = VisionModelConfig(vision_model)
-          self.language_model = LanguageModelConfig(language_model)
+          self.vision_model = VisionModelConfig(**vision_model)
+          self.language_model = LanguageModelConfig(**language_model, pad_token_id = pad_token_id)
+
+          self.vocab_size = self.language_model.vocab_size
+
+          self.language_model.num_image_tokens = (self.vision_model.image_size // self.vision_model.patch_size) ** 2
+
+          self.vision_model.projection_dimension = image_projection_dimension
 
 class VisionLanguageModel(nn.Module):
 
