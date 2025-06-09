@@ -6,7 +6,33 @@ from VisionModel import VisionModelConfig, VisionTransformer
 
 # class for model architecture to give result from prompt and/or image
 
-class Model(nn.Module):
+
+
+class VisionLanguageModelConfig():
+     
+     def __init__(self, 
+                  vision_model: VisionModelConfig = None, 
+                  language_model: LanguageModelConfig = None,
+                  ignore_index = -100,
+                  image_token_index = 256000,
+                  vocab_size = 257152,
+                  image_projection_dimension = 2048, 
+                  vector_dimension = 2048, 
+                  pad_token_id = None, 
+                  **kwargs):
+          super().__init__()
+
+          self.ignore_index = ignore_index
+          self.image_token_index = image_token_index
+          self.vocab_size = vocab_size
+          self.image_projection_dimension = image_projection_dimension
+          self.vector_dimension = vector_dimension
+          self.pad_token_id = pad_token_id
+
+          self.vision_model = VisionModelConfig(vision_model)
+          self.language_model = LanguageModelConfig(language_model)
+
+class VisionLanguageModel(nn.Module):
 
     def __init__(self, config: VisionLanguageModelConfig):
 
@@ -18,11 +44,11 @@ class Model(nn.Module):
         
         self.vocab_size = self.config.vocab_size
 
-        language_model = ConditionalDecoder(config.text_config)
+        language_model = ConditionalDecoder(config.language_model)
 
         self.language_model = language_model
 
-        self.pad_token_id = config.pad_token_id if config.pad_toke_id is not None else -1
+        self.pad_token_id = config.pad_token_id if config.pad_token_id is not None else -1
 
     def forward(self, input_ids: torch.LongTensor, pixel_values: torch.FloatTensor, attention_mask, kvCache):
 
