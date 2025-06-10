@@ -6,6 +6,39 @@ from VisionModel import VisionModelConfig, VisionTransformer
 
 # class for model architecture to give result from prompt and/or image
 
+class LanguageModelConfig():
+     
+    def __init__(self, 
+                  vocab_size, 
+                  vector_dimension, 
+                  feedforward_dimension, 
+                  num_layers, 
+                  num_query_heads, 
+                  num_key_value_heads, 
+                  head_dimension = 256, 
+                  max_position_embeddings = 8192, 
+                  rms_normalization_constant = 1e-6, 
+                  rope_theta = 10000, 
+                  attention_bias = False, 
+                  dropout = 0.0, 
+                  pad_token_id = None, 
+                  **kwargs):
+        super().__init__()
+
+        self.vocab_size = vocab_size 
+        self.vector_dimension = vector_dimension 
+        self.feedforward_dimension = feedforward_dimension
+        self.num_layers = num_layers
+        self.num_query_heads = num_query_heads
+        self.num_key_value_heads = num_key_value_heads 
+        self.head_dimension = head_dimension 
+        self.max_position_embeddings = max_position_embeddings 
+        self.rms_normalization_constant = rms_normalization_constant
+        self.rope_theta = rope_theta 
+        self.attention_bias = attention_bias 
+        self.dropout = dropout
+        self.pad_token_id = pad_token_id
+
 
 
 class VisionLanguageModelConfig():
